@@ -1,0 +1,22 @@
+[database]
+path = "."
+
+[family.mike]
+name = "Mike Bogey"
+age = 30
+children = ["John", "Bob"]
+
+[family.alice]
+name = "Alice Bogey"
+age = 25
+children = ["John", "Bob"]
+
+[family.john]
+name = "John Bogey"
+age = 10
+children = []
+
+[family.bob]
+name = "Bob Bogey"
+age = 8
+children = []
