@@ -2,21 +2,25 @@
 path = "."
 
 [family.mike]
-name = "Mike Bogey"
+first_name = "Mike"
+last_name = "Bogey"
 age = 30
 children = ["John", "Bob"]
 
 [family.alice]
-name = "Alice Bogey"
+first_name = "Alice"
+last_name = "Bogey"
 age = 25
 children = ["John", "Bob"]
 
 [family.john]
-name = "John Bogey"
+first_name = "John"
+last_name = "Bogey"
 age = 10
 children = []
 
 [family.bob]
-name = "Bob Bogey"
+first_name = "Bob"
+last_name = "Bogey"
 age = 8
 children = []

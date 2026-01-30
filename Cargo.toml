@@ -11,10 +11,12 @@ sea-orm = { version = "2.0.0-rc.30", features = [
     "runtime-tokio-rustls",
     "macros",
     "debug-print",
+    "schema-sync",
+    "entity-registry",
 ] }
 serde = { version = "1.0.228", features = ["derive"] }
 tokio = { version = "1.49.0", features = ["full"] }
-toml = "0.9.11+spec-1.1.0"
+toml = "0.9.11"
 env_logger = "0.11.8"
 log = "0.4.19"
 anyhow = "1.0.100"

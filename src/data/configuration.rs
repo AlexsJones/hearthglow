@@ -21,8 +21,9 @@ pub struct DatabaseConfig {
 
 #[derive(Deserialize, Serialize, Default, Debug)]
 pub struct Family {
-    name: String,
-    age: u32,
+    pub first_name: String,
+    pub last_name: String,
+    pub age: u32,
     #[serde(default)]
-    children: Vec<String>,
+    pub children: Vec<String>,
 }
