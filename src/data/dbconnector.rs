@@ -1,11 +1,11 @@
+use crate::data::configuration::Configuration;
 use sea_orm::{ActiveValue::Set, Database, DatabaseConnection, EntityTrait};
-
 pub(crate) trait HGDBConnection {
     async fn connect(&mut self) -> Result<(), anyhow::Error>;
     async fn check(&self) -> Result<(), anyhow::Error>;
     async fn close(&self) -> Result<(), anyhow::Error>;
     async fn is_initialized(&self) -> Result<bool, anyhow::Error>;
-    async fn initialize(&self, config: &crate::Configuration) -> Result<(), anyhow::Error>;
+    async fn initialize(&self, config: &Configuration) -> Result<(), anyhow::Error>;
 }
 
 pub struct SQLConnector {
@@ -53,7 +53,7 @@ impl HGDBConnection for SQLConnector {
             .await?;
         Ok(person.is_some())
     }
-    async fn initialize(&self, config: &crate::Configuration) -> Result<(), anyhow::Error> {
+    async fn initialize(&self, config: &Configuration) -> Result<(), anyhow::Error> {
         // Let's populate the people table with our configuration data
         // for each family member setup the database entity with the right relationships
 
