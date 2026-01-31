@@ -1,6 +1,4 @@
-use crate::{
-    data::configuration::Configuration, entity::people::ActiveModel, server::CreatePersonRequest,
-};
+use crate::{data::configuration::Configuration, server::CreatePersonRequest};
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, Database, DatabaseConnection, EntityTrait, QueryFilter,
 };
@@ -42,6 +40,7 @@ impl HGDBConnection for SQLConnector {
         db.get_schema_builder()
             .register(crate::entity::people::Entity)
             .register(crate::entity::person_parent::Entity)
+            .register(crate::entity::star_charts::Entity)
             .sync(&db)
             .await?;
         self.database_connection = Some(db);
@@ -70,7 +69,7 @@ impl HGDBConnection for SQLConnector {
         // Let's populate the people table with our configuration data
         // for each family member setup the database entity with the right relationships
 
-        for (_name, member) in &config.family {
+        for member in config.family.values() {
             let person = crate::entity::people::ActiveModel {
                 first_name: Set(member.first_name.clone()),
                 last_name: Set(member.last_name.clone()),

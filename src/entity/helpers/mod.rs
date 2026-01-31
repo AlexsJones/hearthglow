@@ -13,10 +13,7 @@ pub async fn children_of(
 
     let kids = people::Entity::find()
         // start from people (the child rows), join the link rows where people.id = person_parent.child_id
-        .join(
-            JoinType::InnerJoin,
-            person_parent::Relation::Child.def(),
-        )
+        .join(JoinType::InnerJoin, person_parent::Relation::Child.def())
         .filter(person_parent::Column::ParentId.eq(parent_id))
         .all(db)
         .await?;
@@ -32,10 +29,7 @@ pub async fn parents_of(
 
     let parents = people::Entity::find()
         // start from people (the parent rows), join the link rows where people.id = person_parent.parent_id
-        .join(
-            JoinType::InnerJoin,
-            person_parent::Relation::Parent.def(),
-        )
+        .join(JoinType::InnerJoin, person_parent::Relation::Parent.def())
         .filter(person_parent::Column::ChildId.eq(child_id))
         .all(db)
         .await?;
@@ -61,5 +55,28 @@ pub async fn add_parent_child(
     link.insert(db)
         .await
         .context("failed to insert parent-child link")?;
+    Ok(())
+}
+
+pub async fn create_star_chart(
+    db: &DatabaseConnection,
+    star_chart_id: i32,
+    person_id: i32,
+) -> anyhow::Result<()> {
+    use crate::entity::star_charts;
+
+    let link = star_charts::ActiveModel {
+        person_id: Set(person_id),
+        chart_type: todo!(),
+        chart_key: todo!(),
+        data_json: todo!(),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+        ..Default::default()
+    };
+
+    link.insert(db)
+        .await
+        .context("failed to insert star chart link")?;
     Ok(())
 }
