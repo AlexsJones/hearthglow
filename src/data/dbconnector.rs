@@ -6,8 +6,9 @@ pub(crate) trait HGDBConnection {
     async fn close(&self) -> Result<(), anyhow::Error>;
     async fn is_initialized(&self) -> Result<bool, anyhow::Error>;
     async fn initialize(&self, config: &Configuration) -> Result<(), anyhow::Error>;
+    async fn get_people(&self) -> Result<Vec<String>, anyhow::Error>;
 }
-
+#[derive(Debug, Clone)]
 pub struct SQLConnector {
     path: String,
     database_connection: Option<DatabaseConnection>,
@@ -71,5 +72,18 @@ impl HGDBConnection for SQLConnector {
         }
 
         Ok(())
+    }
+
+    async fn get_people(&self) -> Result<Vec<String>, anyhow::Error> {
+        let people = crate::entity::people::Entity::find()
+            .all(self.database_connection.as_ref().unwrap())
+            .await?;
+
+        let names = people
+            .into_iter()
+            .map(|person| format!("{} {}", person.first_name, person.last_name))
+            .collect();
+
+        Ok(names)
     }
 }
