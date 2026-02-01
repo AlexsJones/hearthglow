@@ -1,7 +1,12 @@
 use crate::data::configuration::Configuration;
 use crate::data::dbconnector::HGDBConnection;
 use crate::data::dbconnector::SQLConnector;
+use crate::server::types::CreatePersonResponse;
+use crate::server::types::GetPersonRequest;
+use crate::server::types::GetPersonResponse;
+pub(crate) mod types;
 use axum::extract::Path;
+use axum::routing::patch;
 use axum::{
     Json, Router,
     extract::State,
@@ -11,6 +16,7 @@ use axum::{
 use log::debug;
 use serde::Deserialize;
 use std::sync::Arc;
+use types::{CreatePersonRequest, CreateStarChartRequest, UpdateStarChartRequest};
 
 #[derive(Clone)]
 pub struct ServerConfig {
@@ -26,6 +32,10 @@ pub async fn run(_config: Configuration, database_connection: SQLConnector, port
         .route("/people", get(list_people))
         .route("/people/{first_name}", get(get_person))
         .route("/people", post(create_person))
+        .route("/stars", get(list_star_charts))
+        .route("/stars", post(create_star_chart))
+        .route("/stars/{id}", get(get_star_chart))
+        .route("/stars/{id}", patch(update_star_chart))
         .with_state(ServerConfig {
             database_connection: shared_db.clone(),
         });
@@ -42,24 +52,20 @@ pub async fn run(_config: Configuration, database_connection: SQLConnector, port
     // Also: you can’t call close() on Arc<T> unless SQLConnector::close takes &self.
     // shared_db.close().await.unwrap();
 }
-
-#[derive(Debug, Deserialize)]
-pub struct CreatePersonRequest {
-    pub first_name: String,
-    pub last_name: String,
-}
-
 async fn get_person(
     State(state): State<ServerConfig>,
-    Path(first_name): Path<String>,
-) -> Result<String, (StatusCode, String)> {
+    Path(name): Path<String>,
+) -> Result<Json<GetPersonResponse>, (StatusCode, String)> {
     let person = state
         .database_connection
-        .get_person(first_name.as_str())
+        .get_person(&name)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(format!("Person: {:?}", person))
+    match person {
+        Some(p) => Ok(Json(p)),
+        None => Err((StatusCode::NOT_FOUND, format!("No person named {}", &name))),
+    }
 }
 
 async fn list_people(State(state): State<ServerConfig>) -> Result<String, (StatusCode, String)> {
@@ -84,4 +90,32 @@ async fn create_person(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(StatusCode::CREATED)
+}
+
+async fn create_star_chart(
+    State(state): State<ServerConfig>,
+    Json(payload): Json<CreateStarChartRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    Ok(StatusCode::CREATED)
+}
+
+async fn update_star_chart(
+    State(state): State<ServerConfig>,
+    Path(id): Path<i32>,
+    Json(payload): Json<UpdateStarChartRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    Ok(StatusCode::OK)
+}
+
+async fn get_star_chart(
+    State(state): State<ServerConfig>,
+    Path(id): Path<i32>,
+) -> Result<String, (StatusCode, String)> {
+    Ok(format!("Star Chart: {:?}", ""))
+}
+
+async fn list_star_charts(
+    State(state): State<ServerConfig>,
+) -> Result<String, (StatusCode, String)> {
+    Ok(format!("Star Charts: {:?}", "star_charts"))
 }

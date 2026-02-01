@@ -1,4 +1,5 @@
-use crate::{data::configuration::Configuration, server::CreatePersonRequest};
+use crate::data::configuration::Configuration;
+use crate::server::types::*;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, Database, DatabaseConnection, EntityTrait, QueryFilter,
 };
@@ -10,13 +11,13 @@ pub(crate) trait HGDBConnection {
     async fn initialize(&self, config: &Configuration) -> Result<(), anyhow::Error>;
     async fn create_person(
         &self,
-        person: &crate::server::CreatePersonRequest,
-    ) -> Result<(), anyhow::Error>;
+        person: &CreatePersonRequest,
+    ) -> Result<CreatePersonResponse, anyhow::Error>;
     async fn get_people(&self) -> Result<Vec<String>, anyhow::Error>;
     async fn get_person(
         &self,
         first_name: &str,
-    ) -> Result<Option<CreatePersonRequest>, anyhow::Error>;
+    ) -> Result<Option<GetPersonResponse>, anyhow::Error>;
 }
 #[derive(Debug, Clone)]
 pub struct SQLConnector {
@@ -87,12 +88,12 @@ impl HGDBConnection for SQLConnector {
     async fn get_person(
         &self,
         first_name: &str,
-    ) -> Result<Option<CreatePersonRequest>, anyhow::Error> {
+    ) -> Result<Option<GetPersonResponse>, anyhow::Error> {
         let person: Option<crate::entity::people::Model> = crate::entity::people::Entity::find()
             .filter(crate::entity::people::Column::FirstName.eq(first_name))
             .one(self.database_connection.as_ref().unwrap())
             .await?;
-        Ok(person.map(|p| CreatePersonRequest {
+        Ok(person.map(|p| GetPersonResponse {
             first_name: p.first_name,
             last_name: p.last_name,
         }))
@@ -113,20 +114,22 @@ impl HGDBConnection for SQLConnector {
 
     async fn create_person(
         &self,
-        person: &crate::server::CreatePersonRequest,
-    ) -> Result<(), anyhow::Error> {
+        person: &CreatePersonRequest,
+    ) -> Result<CreatePersonResponse, anyhow::Error> {
         let person = person.to_owned();
 
-        let newPerson = crate::entity::people::ActiveModel {
+        let new_person = crate::entity::people::ActiveModel {
             first_name: Set(person.first_name.clone()),
             last_name: Set(person.last_name.clone()),
             ..Default::default()
         };
 
-        let _result = crate::entity::people::Entity::insert(newPerson)
+        let result = crate::entity::people::Entity::insert(new_person)
             .exec(self.database_connection.as_ref().unwrap())
             .await?;
 
-        Ok(())
+        Ok(CreatePersonResponse {
+            id: result.last_insert_id,
+        })
     }
 }
