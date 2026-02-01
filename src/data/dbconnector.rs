@@ -34,6 +34,38 @@ pub(crate) trait HGDBConnection {
         star_chart_id: i32,
         star_chart: &UpdateStarChartRequest,
     ) -> Result<UpdateStarChartResponse, anyhow::Error>;
+    async fn delete_star_chart(&self, star_chart_id: i32) -> Result<(), anyhow::Error>;
+    async fn delete_person(&self, person_id: i32) -> Result<(), anyhow::Error>;
+    async fn get_all_people(&self) -> Result<Vec<PersonListItem>, anyhow::Error>;
+    async fn increment_star_chart(
+        &self,
+        star_chart_id: i32,
+        delta: i32,
+    ) -> Result<UpdateStarChartResponse, anyhow::Error>;
+}
+
+// Implement the increment_star_chart method for SQLConnector
+impl SQLConnector {
+    // Helper used internally by tests or server handlers
+    pub async fn increment_star_chart_internal(
+        &self,
+        star_chart_id: i32,
+        delta: i32,
+    ) -> Result<UpdateStarChartResponse, anyhow::Error> {
+        use crate::entity::star_charts;
+
+        let db = self.database_connection.as_ref().unwrap();
+        let existing = star_charts::Entity::find_by_id(star_chart_id).one(db).await?;
+        anyhow::ensure!(existing.is_some(), "star chart {} not found", star_chart_id);
+
+    let existing_model = existing.unwrap();
+    let mut am: star_charts::ActiveModel = existing_model.clone().into();
+    let new_count = existing_model.star_count + delta;
+    am.star_count = sea_orm::ActiveValue::Set(new_count);
+
+        let res = am.update(db).await?;
+        Ok(UpdateStarChartResponse { id: res.id })
+    }
 }
 
 #[cfg(test)]
@@ -119,6 +151,8 @@ mod tests {
         let update_req = UpdateStarChartRequest {
             name: "natal_updated".into(),
             description: "updated-description".into(),
+            star_count: None,
+            star_total: None,
         };
 
         let updated = conn.update_star_chart(created.id, &update_req).await.unwrap();
@@ -178,6 +212,69 @@ mod tests {
         // fetch parent via connector and ensure child appears in children list
         let parent = conn.get_person("Parent").await.unwrap().unwrap();
         assert!(parent.children.iter().any(|c| c.first_name == "Child" && c.last_name == "Two"), "children: {:?}", parent.children);
+    }
+
+    #[tokio::test]
+    async fn test_star_chart_tracking_dbconnector() {
+        use crate::entity::{people, star_charts};
+
+        let db_path = make_tmp_dir();
+        let mut conn = SQLConnector::new(&db_path);
+        conn.connect().await.unwrap();
+
+        // create a person Bob
+        let person_req = CreatePersonRequest {
+            first_name: "Bob".into(),
+            last_name: "Builder".into(),
+        };
+        let person_resp = conn.create_person(&person_req).await.unwrap();
+
+        // create a star chart for Bob with initial 3/10 stars
+        let create_req = CreateStarChartRequest {
+            name: "cleaning".into(),
+            description: "weekly chores".into(),
+            person_id: person_resp.id,
+            star_count: 3,
+            star_total: 10,
+        };
+
+        let created = conn.create_star_chart(&create_req).await.unwrap();
+        assert!(created.id > 0);
+
+        // open a direct DB connection to update the star count (simulate adding stars)
+        let db = sea_orm::Database::connect(format!("sqlite://{}/db.sqlite?mode=rwc", db_path))
+            .await
+            .expect("connect to sqlite");
+
+        // fetch the star chart and increment star_count to 5
+        let existing = star_charts::Entity::find_by_id(created.id)
+            .one(&db)
+            .await
+            .expect("find chart");
+        assert!(existing.is_some());
+        let mut am: star_charts::ActiveModel = existing.unwrap().into();
+        am.star_count = sea_orm::ActiveValue::Set(5);
+        let updated = am.update(&db).await.expect("update chart");
+
+        // fetch updated chart and associated person and assert values
+        let fetched_chart = star_charts::Entity::find_by_id(updated.id)
+            .one(&db)
+            .await
+            .expect("fetch chart");
+        assert!(fetched_chart.is_some());
+        let c = fetched_chart.unwrap();
+        assert_eq!(c.chart_type, "cleaning");
+        assert_eq!(c.star_count, 5);
+        assert_eq!(c.star_total, 10);
+
+        // fetch the person and assert name
+        let p = people::Entity::find_by_id(c.person_id)
+            .one(&db)
+            .await
+            .expect("fetch person");
+        assert!(p.is_some());
+        let p = p.unwrap();
+        assert_eq!(p.first_name, "Bob");
     }
 }
 #[derive(Debug, Clone)]
@@ -316,6 +413,26 @@ impl HGDBConnection for SQLConnector {
                     first_name: k.first_name,
                     last_name: k.last_name,
                     children: Vec::new(),
+                    star_charts: Vec::new(),
+                })
+                .collect();
+
+            // fetch star charts for this person
+            let charts = crate::entity::star_charts::Entity::find()
+                .filter(crate::entity::star_charts::Column::PersonId.eq(p.id))
+                .all(db)
+                .await?;
+
+            let found_charts = charts
+                .into_iter()
+                .map(|c| GetStarChartResponse {
+                    id: c.id,
+                    name: c.chart_type,
+                    description: c.chart_key,
+                    star_count: c.star_count,
+                    star_total: c.star_total,
+                    person_first_name: p.first_name.clone(),
+                    person_last_name: p.last_name.clone(),
                 })
                 .collect();
 
@@ -323,6 +440,7 @@ impl HGDBConnection for SQLConnector {
                 first_name: p.first_name,
                 last_name: p.last_name,
                 children: found_children,
+                star_charts: found_charts,
             }))
         } else {
             Ok(None)
@@ -401,15 +519,72 @@ impl HGDBConnection for SQLConnector {
             .all(self.database_connection.as_ref().unwrap())
             .await?;
 
-        let results = charts
-            .into_iter()
-            .map(|c| GetStarChartResponse {
+        let db = self.database_connection.as_ref().unwrap();
+        let mut results: Vec<GetStarChartResponse> = Vec::new();
+        for c in charts.into_iter() {
+            // fetch owner person
+            let person = crate::entity::people::Entity::find_by_id(c.person_id).one(db).await?;
+            let (pf, pl) = match person {
+                Some(p) => (p.first_name, p.last_name),
+                None => ("".to_string(), "".to_string()),
+            };
+            results.push(GetStarChartResponse {
                 id: c.id,
                 name: c.chart_type.clone(),
                 description: c.chart_key.clone(),
+                star_count: c.star_count,
+                star_total: c.star_total,
+                person_first_name: pf,
+                person_last_name: pl,
+            });
+        }
+
+        Ok(results)
+    }
+
+    async fn delete_star_chart(&self, star_chart_id: i32) -> Result<(), anyhow::Error> {
+        use crate::entity::star_charts;
+        let db = self.database_connection.as_ref().unwrap();
+        let _res = star_charts::Entity::delete_by_id(star_chart_id).exec(db).await?;
+        Ok(())
+    }
+
+    async fn delete_person(&self, person_id: i32) -> Result<(), anyhow::Error> {
+        use crate::entity::{people, person_parent, star_charts};
+        let db = self.database_connection.as_ref().unwrap();
+
+        // remove star charts
+        let _ = star_charts::Entity::delete_many()
+            .filter(star_charts::Column::PersonId.eq(person_id))
+            .exec(db)
+            .await?;
+
+        // remove parent/child links involving this person
+        let _ = person_parent::Entity::delete_many()
+            .filter(person_parent::Column::ParentId.eq(person_id))
+            .exec(db)
+            .await?;
+        let _ = person_parent::Entity::delete_many()
+            .filter(person_parent::Column::ChildId.eq(person_id))
+            .exec(db)
+            .await?;
+
+        // finally delete the person
+        let _ = people::Entity::delete_by_id(person_id).exec(db).await?;
+        Ok(())
+    }
+
+    async fn get_all_people(&self) -> Result<Vec<PersonListItem>, anyhow::Error> {
+        let db = self.database_connection.as_ref().unwrap();
+        let people = crate::entity::people::Entity::find().all(db).await?;
+        let results = people
+            .into_iter()
+            .map(|p| PersonListItem {
+                id: p.id,
+                first_name: p.first_name,
+                last_name: p.last_name,
             })
             .collect();
-
         Ok(results)
     }
 
@@ -421,11 +596,25 @@ impl HGDBConnection for SQLConnector {
             .one(self.database_connection.as_ref().unwrap())
             .await?;
 
-        Ok(chart.map(|c| GetStarChartResponse {
-            id: c.id,
-            name: c.chart_type,
-            description: c.chart_key,
-        }))
+        if let Some(c) = chart {
+            let db = self.database_connection.as_ref().unwrap();
+            let person = crate::entity::people::Entity::find_by_id(c.person_id).one(db).await?;
+            let (pf, pl) = match person {
+                Some(p) => (p.first_name, p.last_name),
+                None => ("".to_string(), "".to_string()),
+            };
+            Ok(Some(GetStarChartResponse {
+                id: c.id,
+                name: c.chart_type,
+                description: c.chart_key,
+                star_count: c.star_count,
+                star_total: c.star_total,
+                person_first_name: pf,
+                person_last_name: pl,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn update_star_chart(
@@ -443,9 +632,24 @@ impl HGDBConnection for SQLConnector {
         let mut am: star_charts::ActiveModel = existing.unwrap().into();
         am.chart_type = Set(star_chart.name.clone());
         am.chart_key = Set(star_chart.description.clone());
+        if let Some(sc) = star_chart.star_count {
+            am.star_count = Set(sc);
+        }
+        if let Some(st) = star_chart.star_total {
+            am.star_total = Set(st);
+        }
 
         let res = am.update(db).await?;
 
         Ok(UpdateStarChartResponse { id: res.id })
+    }
+
+    async fn increment_star_chart(
+        &self,
+        star_chart_id: i32,
+        delta: i32,
+    ) -> Result<UpdateStarChartResponse, anyhow::Error> {
+        // Delegate to helper
+        self.increment_star_chart_internal(star_chart_id, delta).await
     }
 }

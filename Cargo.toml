@@ -22,3 +22,4 @@ log = "0.4.19"
 anyhow = "1.0.100"
 axum = "0.8.8"
 chrono = "0.4.43"
+# static file serving handled by simple axum handlers; no extra crates required here
