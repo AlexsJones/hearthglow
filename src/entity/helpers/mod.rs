@@ -10,13 +10,18 @@ pub async fn children_of(
     parent_id: i32,
 ) -> anyhow::Result<Vec<crate::entity::people::Model>> {
     use crate::entity::{people, person_parent};
-
-    let kids = people::Entity::find()
-        // start from people (the child rows), join the link rows where people.id = person_parent.child_id
-        .join(JoinType::InnerJoin, person_parent::Relation::Child.def())
+    // First get links to child ids, then fetch people by id to avoid ambiguous SQL when joining
+    let links = person_parent::Entity::find()
         .filter(person_parent::Column::ParentId.eq(parent_id))
         .all(db)
         .await?;
+
+    let mut kids = Vec::new();
+    for l in links {
+        if let Some(m) = people::Entity::find_by_id(l.child_id).one(db).await? {
+            kids.push(m);
+        }
+    }
 
     Ok(kids)
 }
@@ -26,13 +31,18 @@ pub async fn parents_of(
     child_id: i32,
 ) -> anyhow::Result<Vec<crate::entity::people::Model>> {
     use crate::entity::{people, person_parent};
-
-    let parents = people::Entity::find()
-        // start from people (the parent rows), join the link rows where people.id = person_parent.parent_id
-        .join(JoinType::InnerJoin, person_parent::Relation::Parent.def())
+    // First get links to parent ids, then fetch people by id to avoid ambiguous SQL when joining
+    let links = person_parent::Entity::find()
         .filter(person_parent::Column::ChildId.eq(child_id))
         .all(db)
         .await?;
+
+    let mut parents = Vec::new();
+    for l in links {
+        if let Some(m) = people::Entity::find_by_id(l.parent_id).one(db).await? {
+            parents.push(m);
+        }
+    }
 
     Ok(parents)
 }
@@ -60,16 +70,16 @@ pub async fn add_parent_child(
 
 pub async fn create_star_chart(
     db: &DatabaseConnection,
-    star_chart_id: i32,
     person_id: i32,
 ) -> anyhow::Result<()> {
     use crate::entity::star_charts;
 
     let link = star_charts::ActiveModel {
         person_id: Set(person_id),
-        chart_type: todo!(),
-        chart_key: todo!(),
-        data_json: todo!(),
+        chart_type: Set(String::new()),
+        chart_key: Set(String::new()),
+        star_count: Set(0),
+        star_total: Set(0),
         created_at: Set(chrono::Utc::now()),
         updated_at: Set(chrono::Utc::now()),
         ..Default::default()

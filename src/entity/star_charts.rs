@@ -14,9 +14,10 @@ pub struct Model {
     /// "natal" or "transit:2026-01-31T00:00:00Z"
     pub chart_key: String,
 
-    /// Computed chart data (planets, houses, aspects, settings, etc.)
-    /// Stored as JSON (SQLite will store as TEXT).
-    pub data_json: Json,
+    //Number of stars
+    pub star_count: i32,
+    // Total stars
+    pub star_total: i32,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

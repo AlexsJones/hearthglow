@@ -14,7 +14,6 @@ use axum::{
     routing::{get, post},
 };
 use log::debug;
-use serde::Deserialize;
 use std::sync::Arc;
 use types::{CreatePersonRequest, CreateStarChartRequest, UpdateStarChartRequest};
 
@@ -32,7 +31,7 @@ pub async fn run(_config: Configuration, database_connection: SQLConnector, port
         .route("/people", get(list_people))
         .route("/people/{first_name}", get(get_person))
         .route("/people", post(create_person))
-        .route("/stars", get(list_star_charts))
+        .route("/stars", get(get_star_charts))
         .route("/stars", post(create_star_chart))
         .route("/stars/{id}", get(get_star_chart))
         .route("/stars/{id}", patch(update_star_chart))
@@ -96,6 +95,13 @@ async fn create_star_chart(
     State(state): State<ServerConfig>,
     Json(payload): Json<CreateStarChartRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let star_chart = state
+        .database_connection
+        .as_ref()
+        .create_star_chart(&payload)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     Ok(StatusCode::CREATED)
 }
 
@@ -104,18 +110,45 @@ async fn update_star_chart(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateStarChartRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let _star_chart = state
+        .database_connection
+        .as_ref()
+        .update_star_chart(id, &payload)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     Ok(StatusCode::OK)
 }
 
 async fn get_star_chart(
     State(state): State<ServerConfig>,
     Path(id): Path<i32>,
-) -> Result<String, (StatusCode, String)> {
-    Ok(format!("Star Chart: {:?}", ""))
+) -> Result<Json<crate::server::types::GetStarChartResponse>, (StatusCode, String)> {
+    let star_chart = state
+        .database_connection
+        .as_ref()
+        .get_star_chart(id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    match star_chart {
+        Some(s) => Ok(Json(s)),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            format!("No star chart with id {}", id),
+        )),
+    }
 }
 
-async fn list_star_charts(
+async fn get_star_charts(
     State(state): State<ServerConfig>,
-) -> Result<String, (StatusCode, String)> {
-    Ok(format!("Star Charts: {:?}", "star_charts"))
+) -> Result<Json<Vec<crate::server::types::GetStarChartResponse>>, (StatusCode, String)> {
+    let charts = state
+        .database_connection
+        .as_ref()
+        .get_star_charts()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(charts))
 }
