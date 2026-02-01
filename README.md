@@ -1,33 +1,44 @@
-# hearthglow
+# HearthGlow
 
-Hearthglow is a program that runs a linux native UI application.
-The purpose of this program is to track family calendar events, wins, reminders and more.
-It is designed to be run on a local network with ssh access for remote control.
+![HearthGlow Logo](frontend/dist/logo.png)
 
+HearthGlow is a small, local-first app for tracking family star charts, wins, and household goals. This repo contains a Rust backend (axum + SeaORM + SQLite) and a tiny TypeScript-powered static frontend served by the server.
 
-## Design
+Theme: nostalgic 80's pixel-game — the site and README adopt a retro arcade/hearth vibe.
 
-## Code 
+## Quick start
+
+1. Build and run the server:
+
+```bash
+cargo run --release
 ```
-Configuration -> Used to bootstrap the application. ("configuration.hg")
-Types -> Defines the data types used in the application.
-CLI -> Command Line Interface for local control (includes checking config, making edits to the database).
-App -> The primary application logic loop is event driven; it handles user input and updates the UI accordingly, and storing updates in the database. It also is triggered on timed events in the database.
+
+2. Open http://localhost:8080 in a browser. If you want the logo to show up in the site and README, place the `logo.png` file at `frontend/dist/logo.png` (the repository may already include it via assets).
+
+## Code overview
+
 ```
+Configuration -> Used to bootstrap the application (see `configuration.toml`).
+Types -> API request/response types used by the server (see `src/server/types.rs`).
+CLI -> Command Line Interface for local control and maintenance.
+App -> The primary server logic lives under `src/` and serves the static frontend as well as the HTTP API.
+```
+
 ## Architecture
-```
---------
-| UX   |
---------
-   |
-   |
---------       -----------
-| App   | ---> | Database |  
---------       -----------
-   |
-   |
---------
-| CLI   |
---------
 
 ```
+--------
+| Frontend (browser)
+--------
+     |
+     v
+--------       -----------
+| Axum | ---> | SQLite via SeaORM |
+--------       -----------
+     |
+     v
+   Admin / CLI tools
+```
+
+If you'd like I can add a small build step to produce optimized frontend assets or a short script to copy the provided `logo.png` into `frontend/dist` automatically.

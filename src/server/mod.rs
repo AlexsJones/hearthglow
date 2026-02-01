@@ -47,6 +47,7 @@ pub async fn run(_config: Configuration, database_connection: SQLConnector, port
     .route("/stars/{id}/increment", post(increment_star_chart))
         .route("/app.js", get(serve_app_js))
     .route("/styles.css", get(serve_styles))
+        .route("/logo.png", get(serve_logo))
     .route("/", get(serve_index))
         .route("/initialize", post(initialize_db))
         .with_state(ServerConfig {
@@ -85,6 +86,30 @@ async fn serve_styles() -> Result<impl IntoResponse, (StatusCode, String)> {
         Ok(bytes) => Ok(([("content-type", "text/css; charset=utf-8")], bytes)),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
+}
+
+async fn serve_logo() -> Result<impl IntoResponse, (StatusCode, String)> {
+        match tokio::fs::read("frontend/dist/logo.png").await {
+                Ok(bytes) => Ok(([("content-type", "image/png")], bytes)),
+                Err(_) => {
+                        // Fallback embedded SVG (retro heart) when no logo file is present.
+                        let svg = r#"<svg xmlns='http://www.w3.org/2000/svg' width='512' height='256' viewBox='0 0 512 256'>
+    <defs>
+        <linearGradient id='g' x1='0' x2='1'>
+            <stop offset='0' stop-color='#ff8a65'/>
+            <stop offset='1' stop-color='#ffd54f'/>
+        </linearGradient>
+    </defs>
+    <rect width='100%' height='100%' fill='transparent'/>
+    <g transform='translate(50,20) scale(0.8)'>
+        <path d='M128 32c-35 0-64 28-64 64 0 96 128 128 128 192 0-64 128-96 128-192 0-36-29-64-64-64-23 0-42 12-64 36-22-24-41-36-64-36z' fill='url(#g)' stroke='#3b2f2b' stroke-width='6'/>
+        <text x='0' y='180' fill='#ffb74d' font-family='monospace' font-size='36' font-weight='700'>HEARTHGLOW</text>
+    </g>
+</svg>"#;
+                        let bytes = svg.as_bytes().to_vec();
+                        Ok(([("content-type", "image/svg+xml; charset=utf-8")], bytes))
+                }
+        }
 }
 async fn get_person(
     State(state): State<ServerConfig>,
