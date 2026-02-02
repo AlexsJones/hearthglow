@@ -1,8 +1,7 @@
 use anyhow::Context;
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter,
-    QuerySelect, RelationTrait, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
 };
 
 pub async fn children_of(

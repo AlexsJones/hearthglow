@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>HearthGlow — Family Hearth</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@event-calendar/build@5.3.1/dist/event-calendar.min.css">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -12,20 +13,44 @@
       <img src="/logo.png" alt="HearthGlow" class="site-logo" />
     </div>
     <header>
-      <p class="tagline">A warm place to track family star charts and little victories.</p>
+      <p class="tagline">A warm place for your shared family calendar and little victories.</p>
     </header>
 
     <nav class="tabs">
       <button id="tab_landing" class="tab active">Home</button>
+      <button id="tab_stars" class="tab">Star Charts</button>
       <button id="tab_admin" class="tab">Admin</button>
     </nav>
 
-    <section id="landing" class="card">
-      <h2>Active Star Charts</h2>
-      <ul id="landing_charts" class="charts"></ul>
+    <section id="landing" class="card calendar-home">
+      <div class="calendar-header">
+        <h2 style="flex: 1; margin: 0;">Family Calendar</h2>
+        <button id="event_form_toggle" class="toggle-btn">+ Add Event</button>
+      </div>
+      
+      <div id="event_form_panel" class="event-form-panel hidden">
+        <div class="event-form-content">
+          <label>Person <select id="event_person"></select></label>
+          <label>Event title <input id="event_title" placeholder="Movie night" /></label>
+          <label>Start time <input id="event_start" type="datetime-local" /></label>
+          <label>End time <input id="event_end" type="datetime-local" /></label>
+          <button id="event_add">Add Event</button>
+          <div id="event_result" class="muted"></div>
+          <p class="small calendar-help">Tip: click a time slot to prefill the form.</p>
+        </div>
+      </div>
 
-      <h2>Our Family</h2>
-      <ul id="family_list" class="charts"></ul>
+      <div class="calendar-layout">
+        <div id="calendar" class="calendar-shell ec-dark"></div>
+      </div>
+    </section>
+
+    <section id="stars" class="card hidden stars-focus">
+      <div class="stars-hero">
+        <h2>Star Charts</h2>
+        <p class="stars-subtitle">Tap a chart to add a shiny star ⭐</p>
+      </div>
+      <ul id="stars_focus_list" class="stars-grid"></ul>
     </section>
 
     <section id="admin" class="card hidden">
@@ -78,8 +103,18 @@
     <footer>
       <small>Made with a warm hearth and TypeScript — served by your local Axum server.</small>
     </footer>
+
+    <!-- Event Details Modal -->
+    <div id="event_modal" class="modal hidden">
+      <div class="modal-content">
+        <button id="event_modal_close" class="modal-close">&times;</button>
+        <h3 id="event_modal_title">Event Details</h3>
+        <div id="event_modal_body"></div>
+      </div>
+    </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@event-calendar/build@5.3.1/dist/event-calendar.min.js"></script>
   <script src="/app.js" type="module"></script>
 </body>
 </html>

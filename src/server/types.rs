@@ -74,3 +74,36 @@ pub struct IncrementStarChartRequest {
 pub struct UpdateStarChartResponse {
     pub id: i32,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCalendarEventRequest {
+    pub title: String,
+    pub person_id: i32,
+    pub start: String,
+    pub end: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateCalendarEventResponse {
+    pub id: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CalendarEventResponse {
+    pub id: i32,
+    pub title: String,
+    pub start: String,
+    pub end: String,
+    #[serde(rename = "resourceId")]
+    pub resource_id: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CalendarPersonResponse {
+    pub id: i32,
+    pub title: String,
+    #[serde(rename = "eventBackgroundColor")]
+    pub event_background_color: Option<String>,
+    #[serde(rename = "eventTextColor")]
+    pub event_text_color: Option<String>,
+}

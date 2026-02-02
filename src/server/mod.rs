@@ -2,7 +2,6 @@ use crate::data::configuration::Configuration;
 use crate::data::dbconnector::HGDBConnection;
 use crate::data::dbconnector::SQLConnector;
 use crate::server::types::CreatePersonResponse;
-use crate::server::types::GetPersonRequest;
 use crate::server::types::GetPersonResponse;
 pub(crate) mod types;
 use axum::extract::Path;
@@ -21,6 +20,10 @@ use types::{
     CreateStarChartRequest,
     UpdateStarChartRequest,
     IncrementStarChartRequest,
+    CreateCalendarEventRequest,
+    CreateCalendarEventResponse,
+    CalendarEventResponse,
+    CalendarPersonResponse,
 };
 
 #[derive(Clone)]
@@ -40,6 +43,8 @@ pub async fn run(_config: Configuration, database_connection: SQLConnector, port
     .route("/admin/people", get(admin_list_people))
     .route("/admin/people/{id}", delete(admin_delete_person))
     .route("/admin/stars/{id}", delete(admin_delete_star))
+        .route("/calendar/people", get(list_calendar_people))
+        .route("/calendar/events", get(list_calendar_events).post(create_calendar_event))
         .route("/stars", get(get_star_charts))
     .route("/stars", post(create_star_chart))
         .route("/stars/{id}", get(get_star_chart))
@@ -271,6 +276,46 @@ async fn admin_delete_star(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(StatusCode::OK)
+}
+
+async fn list_calendar_people(
+    State(state): State<ServerConfig>,
+) -> Result<Json<Vec<CalendarPersonResponse>>, (StatusCode, String)> {
+    let people = state
+        .database_connection
+        .as_ref()
+        .list_calendar_people()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(people))
+}
+
+async fn list_calendar_events(
+    State(state): State<ServerConfig>,
+) -> Result<Json<Vec<CalendarEventResponse>>, (StatusCode, String)> {
+    let events = state
+        .database_connection
+        .as_ref()
+        .list_calendar_events()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(events))
+}
+
+async fn create_calendar_event(
+    State(state): State<ServerConfig>,
+    Json(payload): Json<CreateCalendarEventRequest>,
+) -> Result<(StatusCode, Json<CreateCalendarEventResponse>), (StatusCode, String)> {
+    let resp = state
+        .database_connection
+        .as_ref()
+        .create_calendar_event(&payload)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok((StatusCode::CREATED, Json(resp)))
 }
 
 async fn initialize_db(State(state): State<ServerConfig>) -> Result<StatusCode, (StatusCode, String)> {
