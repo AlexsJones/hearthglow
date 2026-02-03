@@ -22,7 +22,7 @@ pub async fn run() {
     }
     //
     let config = Configuration::load().unwrap();
-    debug!("Loaded configuration: {:?}", config);
+    debug!("Loaded configuration: {config:?}");
     // Check the database connection
     let mut db_connector = SQLConnector::new(&config.database.path);
     db_connector.connect().await.unwrap();

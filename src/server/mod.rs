@@ -18,6 +18,7 @@ use std::sync::Arc;
 use types::{
     CreatePersonRequest,
     CreateStarChartRequest,
+    CreateStarChartResponse,
     UpdateStarChartRequest,
     IncrementStarChartRequest,
     CreateCalendarEventRequest,
@@ -38,18 +39,18 @@ pub async fn run(_config: Configuration, database_connection: SQLConnector, port
 
     let app = Router::new()
     .route("/people", get(list_people))
-        .route("/people/{first_name}", get(get_person))
+        .route("/people/:first_name", get(get_person))
         .route("/people", post(create_person))
     .route("/admin/people", get(admin_list_people))
-    .route("/admin/people/{id}", delete(admin_delete_person))
-    .route("/admin/stars/{id}", delete(admin_delete_star))
+    .route("/admin/people/:id", delete(admin_delete_person))
+    .route("/admin/stars/:id", delete(admin_delete_star))
         .route("/calendar/people", get(list_calendar_people))
         .route("/calendar/events", get(list_calendar_events).post(create_calendar_event))
         .route("/stars", get(get_star_charts))
     .route("/stars", post(create_star_chart))
-        .route("/stars/{id}", get(get_star_chart))
-    .route("/stars/{id}", patch(update_star_chart))
-    .route("/stars/{id}/increment", post(increment_star_chart))
+        .route("/stars/:id", get(get_star_chart))
+    .route("/stars/:id", patch(update_star_chart))
+    .route("/stars/:id/increment", post(increment_star_chart))
         .route("/app.js", get(serve_app_js))
     .route("/styles.css", get(serve_styles))
         .route("/logo.png", get(serve_logo))
@@ -165,15 +166,15 @@ async fn create_person(
 async fn create_star_chart(
     State(state): State<ServerConfig>,
     Json(payload): Json<CreateStarChartRequest>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    let _star_chart = state
+) -> Result<(StatusCode, Json<CreateStarChartResponse>), (StatusCode, String)> {
+    let resp = state
         .database_connection
         .as_ref()
         .create_star_chart(&payload)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(StatusCode::CREATED)
+    Ok((StatusCode::CREATED, Json(resp)))
 }
 
 async fn update_star_chart(

@@ -166,6 +166,7 @@ impl HGDBConnection for SQLConnector {
             let found_children = kids_models
                 .into_iter()
                 .map(|k| GetPersonResponse {
+                    id: k.id,
                     first_name: k.first_name,
                     last_name: k.last_name,
                     children: Vec::new(),
@@ -192,6 +193,7 @@ impl HGDBConnection for SQLConnector {
                 .collect();
 
             Ok(Some(GetPersonResponse {
+                id: p.id,
                 first_name: p.first_name,
                 last_name: p.last_name,
                 children: found_children,

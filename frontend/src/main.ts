@@ -1,5 +1,6 @@
 // TypeScript source for HearthGlow UI (mirrors compiled app.js)
 interface Person {
+  id: number;
   first_name: string;
   last_name: string;
   children: Person[];

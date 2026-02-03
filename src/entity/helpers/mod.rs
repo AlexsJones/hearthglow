@@ -1,8 +1,6 @@
 use anyhow::Context;
 
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 
 pub async fn children_of(
     db: &DatabaseConnection,
@@ -67,10 +65,7 @@ pub async fn add_parent_child(
     Ok(())
 }
 
-pub async fn create_star_chart(
-    db: &DatabaseConnection,
-    person_id: i32,
-) -> anyhow::Result<()> {
+pub async fn create_star_chart(db: &DatabaseConnection, person_id: i32) -> anyhow::Result<()> {
     use crate::entity::star_charts;
 
     let link = star_charts::ActiveModel {

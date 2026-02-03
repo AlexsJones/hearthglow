@@ -18,6 +18,7 @@ pub struct GetPersonRequest {
 
 #[derive(Debug, Serialize)]
 pub struct GetPersonResponse {
+    pub id: i32,
     pub first_name: String,
     pub last_name: String,
     pub children: Vec<GetPersonResponse>,
