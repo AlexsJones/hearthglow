@@ -3,6 +3,7 @@ use crate::data::dbconnector::{HGDBConnection, SQLConnector};
 use crate::server;
 use clap::Parser;
 use log::{debug, info};
+use sea_orm::sea_query::raw_sql::seaql::debug;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -11,17 +12,20 @@ struct Args {
     server: bool,
     #[arg(short, long, default_value_t = 8080)]
     port: u16,
+    #[arg(short, long, default_value_t = String::from("configuration.toml"))]
+    configuration_path: String,
 }
 
 pub async fn run() {
     let args = Args::parse();
 
     debug!("Running in server mode: {}", args.server);
+    debug!("Configuration path: {}", args.configuration_path);
     if !args.server {
         // Client code here
     }
     //
-    let config = Configuration::load().unwrap();
+    let config = Configuration::load(args.configuration_path).unwrap();
     debug!("Loaded configuration: {config:?}");
     // Check the database connection
     let mut db_connector = SQLConnector::new(&config.database.path);

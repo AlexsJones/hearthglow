@@ -10,54 +10,53 @@ use axum::{
     Json, Router,
     extract::State,
     http::StatusCode,
-    routing::{get, post, delete},
     response::IntoResponse,
+    routing::{delete, get, post},
 };
 use log::debug;
 use std::sync::Arc;
 use types::{
-    CreatePersonRequest,
-    CreateStarChartRequest,
-    CreateStarChartResponse,
-    UpdateStarChartRequest,
-    IncrementStarChartRequest,
-    CreateCalendarEventRequest,
-    CreateCalendarEventResponse,
-    CalendarEventResponse,
-    CalendarPersonResponse,
+    CalendarEventResponse, CalendarPersonResponse, CreateCalendarEventRequest,
+    CreateCalendarEventResponse, CreatePersonRequest, CreateStarChartRequest,
+    CreateStarChartResponse, IncrementStarChartRequest, UpdateStarChartRequest,
 };
 
 #[derive(Clone)]
 pub struct ServerConfig {
     pub database_connection: Arc<SQLConnector>,
+    pub configuration: Configuration,
 }
 
-pub async fn run(_config: Configuration, database_connection: SQLConnector, port: u16) {
+pub async fn run(config: Configuration, database_connection: SQLConnector, port: u16) {
     debug!("Starting server on port {}", port);
 
     let shared_db = Arc::new(database_connection);
 
     let app = Router::new()
-    .route("/people", get(list_people))
+        .route("/people", get(list_people))
         .route("/people/:first_name", get(get_person))
         .route("/people", post(create_person))
-    .route("/admin/people", get(admin_list_people))
-    .route("/admin/people/:id", delete(admin_delete_person))
-    .route("/admin/stars/:id", delete(admin_delete_star))
+        .route("/admin/people", get(admin_list_people))
+        .route("/admin/people/:id", delete(admin_delete_person))
+        .route("/admin/stars/:id", delete(admin_delete_star))
         .route("/calendar/people", get(list_calendar_people))
-        .route("/calendar/events", get(list_calendar_events).post(create_calendar_event))
+        .route(
+            "/calendar/events",
+            get(list_calendar_events).post(create_calendar_event),
+        )
         .route("/stars", get(get_star_charts))
-    .route("/stars", post(create_star_chart))
+        .route("/stars", post(create_star_chart))
         .route("/stars/:id", get(get_star_chart))
-    .route("/stars/:id", patch(update_star_chart))
-    .route("/stars/:id/increment", post(increment_star_chart))
+        .route("/stars/:id", patch(update_star_chart))
+        .route("/stars/:id/increment", post(increment_star_chart))
         .route("/app.js", get(serve_app_js))
-    .route("/styles.css", get(serve_styles))
+        .route("/styles.css", get(serve_styles))
         .route("/logo.png", get(serve_logo))
-    .route("/", get(serve_index))
+        .route("/", get(serve_index))
         .route("/initialize", post(initialize_db))
         .with_state(ServerConfig {
             database_connection: shared_db.clone(),
+            configuration: config.clone(),
         });
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
@@ -82,7 +81,10 @@ async fn serve_index() -> Result<impl IntoResponse, (StatusCode, String)> {
 
 async fn serve_app_js() -> Result<impl IntoResponse, (StatusCode, String)> {
     match tokio::fs::read("frontend/dist/app.js").await {
-        Ok(bytes) => Ok(([("content-type", "application/javascript; charset=utf-8")], bytes)),
+        Ok(bytes) => Ok((
+            [("content-type", "application/javascript; charset=utf-8")],
+            bytes,
+        )),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }
@@ -95,11 +97,11 @@ async fn serve_styles() -> Result<impl IntoResponse, (StatusCode, String)> {
 }
 
 async fn serve_logo() -> Result<impl IntoResponse, (StatusCode, String)> {
-        match tokio::fs::read("frontend/dist/logo.png").await {
-                Ok(bytes) => Ok(([("content-type", "image/png")], bytes)),
-                Err(_) => {
-                        // Fallback embedded SVG (retro heart) when no logo file is present.
-                        let svg = r#"<svg xmlns='http://www.w3.org/2000/svg' width='512' height='256' viewBox='0 0 512 256'>
+    match tokio::fs::read("frontend/dist/logo.png").await {
+        Ok(bytes) => Ok(([("content-type", "image/png")], bytes)),
+        Err(_) => {
+            // Fallback embedded SVG (retro heart) when no logo file is present.
+            let svg = r#"<svg xmlns='http://www.w3.org/2000/svg' width='512' height='256' viewBox='0 0 512 256'>
     <defs>
         <linearGradient id='g' x1='0' x2='1'>
             <stop offset='0' stop-color='#ff8a65'/>
@@ -112,10 +114,10 @@ async fn serve_logo() -> Result<impl IntoResponse, (StatusCode, String)> {
         <text x='0' y='180' fill='#ffb74d' font-family='monospace' font-size='36' font-weight='700'>HEARTHGLOW</text>
     </g>
 </svg>"#;
-                        let bytes = svg.as_bytes().to_vec();
-                        Ok(([("content-type", "image/svg+xml; charset=utf-8")], bytes))
-                }
+            let bytes = svg.as_bytes().to_vec();
+            Ok(([("content-type", "image/svg+xml; charset=utf-8")], bytes))
         }
+    }
 }
 async fn get_person(
     State(state): State<ServerConfig>,
@@ -133,7 +135,9 @@ async fn get_person(
     }
 }
 
-async fn list_people(State(state): State<ServerConfig>) -> Result<Json<Vec<String>>, (StatusCode, String)> {
+async fn list_people(
+    State(state): State<ServerConfig>,
+) -> Result<Json<Vec<String>>, (StatusCode, String)> {
     let people = state
         .database_connection
         .get_people()
@@ -240,7 +244,9 @@ async fn get_star_charts(
     Ok(Json(charts))
 }
 
-async fn admin_list_people(State(state): State<ServerConfig>) -> Result<Json<Vec<crate::server::types::PersonListItem>>, (StatusCode, String)> {
+async fn admin_list_people(
+    State(state): State<ServerConfig>,
+) -> Result<Json<Vec<crate::server::types::PersonListItem>>, (StatusCode, String)> {
     let people = state
         .database_connection
         .as_ref()
@@ -319,13 +325,14 @@ async fn create_calendar_event(
     Ok((StatusCode::CREATED, Json(resp)))
 }
 
-async fn initialize_db(State(state): State<ServerConfig>) -> Result<StatusCode, (StatusCode, String)> {
-    // Load configuration from file and initialize DB (convenience endpoint for development)
-    let cfg = Configuration::load().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+async fn initialize_db(
+    State(state): State<ServerConfig>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    //  This is a little ineligent
     state
         .database_connection
         .as_ref()
-        .initialize(&cfg)
+        .initialize(&state.configuration)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
