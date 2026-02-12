@@ -57,6 +57,9 @@
       <h2>Create Person</h2>
       <label>First name <input id="first_name" /></label>
       <label>Last name <input id="last_name" /></label>
+      <div class="admin-create-person-row">
+        <label>Color <input id="calendar_color" type="color" value="#FF6B9D" /></label>
+      </div>
       <button id="create_person">Create</button>
       <div id="create_person_result" class="muted"></div>
 
@@ -94,6 +97,7 @@
   <label>Person <select id="admin_chart_person_select"></select></label>
   <label>Chart name <input id="admin_chart_name" /></label>
   <label>Description <input id="admin_chart_description" /></label>
+  <label>Color <input id="admin_chart_color" type="color" value="#ffb74d" /></label>
   <label>Initial stars <input id="admin_chart_count" type="number" value="0" /></label>
   <label>Total goal <input id="admin_chart_total" type="number" value="10" /></label>
   <button id="admin_create_chart">Create Chart</button>

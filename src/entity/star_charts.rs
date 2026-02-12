@@ -20,6 +20,7 @@ pub struct Model {
     pub star_total: i32,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
+    pub color: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

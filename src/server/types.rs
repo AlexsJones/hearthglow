@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct CreatePersonRequest {
     pub first_name: String,
     pub last_name: String,
+    pub calendar_color: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -32,6 +33,7 @@ pub struct CreateStarChartRequest {
     pub person_id: i32,
     pub star_count: i32,
     pub star_total: i32,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -46,6 +48,7 @@ pub struct GetStarChartResponse {
     pub description: String,
     pub star_count: i32,
     pub star_total: i32,
+    pub color: Option<String>,
     // who this chart belongs to
     pub person_first_name: String,
     pub person_last_name: String,

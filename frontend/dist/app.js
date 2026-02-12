@@ -77,6 +77,43 @@ document.addEventListener("DOMContentLoaded", () => {
     tick();
   }
 
+  // initialize admin color input with a random default
+  const adminColorInput = document.getElementById("calendar_color");
+  if (adminColorInput) {
+    try {
+      const palette = [
+        "#FF6B9D", "#4ECDC4", "#FFD93D", "#95E1D3", "#F38181", "#AA96DA", "#FCBAD3", "#A8E6CF",
+        "#FFD700", "#87CEEB", "#FF8C42", "#C77DFF", "#FF69B4", "#00CED1", "#FFB347", "#98D8C8",
+        "#F7DC6F", "#BB8FCE",
+      ];
+      const idx = Math.floor(Math.random() * palette.length);
+      adminColorInput.value = palette[idx];
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // Helper to darken a hex color by percent (0-100)
+  function darkenHex(hex, percent) {
+    try {
+      let h = hex.replace('#','');
+      if (h.length === 3) h = h.split('').map(c => c + c).join('');
+      const num = parseInt(h,16);
+      let r = (num >> 16) & 0xff;
+      let g = (num >> 8) & 0xff;
+      let b = num & 0xff;
+      r = Math.max(0, Math.min(255, Math.floor(r * (1 - percent/100))));
+      g = Math.max(0, Math.min(255, Math.floor(g * (1 - percent/100))));
+      b = Math.max(0, Math.min(255, Math.floor(b * (1 - percent/100))));
+      const rr = r.toString(16).padStart(2,'0');
+      const gg = g.toString(16).padStart(2,'0');
+      const bb = b.toString(16).padStart(2,'0');
+      return `#${rr}${gg}${bb}`;
+    } catch (e) {
+      return hex;
+    }
+  }
+
   function showTab(which) {
     currentTab = which;
     const isLanding = which === "landing";
@@ -195,6 +232,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const description = document
               .getElementById("admin_chart_description")
               .value.trim();
+            const color = document.getElementById("admin_chart_color")?.value;
             const count =
               parseInt(document.getElementById("admin_chart_count").value) || 0;
             const total =
@@ -210,8 +248,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 name,
                 description,
                 person_id: parseInt(selected),
-                star_count: count,
-                star_total: total,
+                  star_count: count,
+                  star_total: total,
+                  color: color,
               };
               const r = await fetch("/stars", {
                 method: "POST",
@@ -426,6 +465,12 @@ document.addEventListener("DOMContentLoaded", () => {
             await loadLanding();
           });
 
+          // visually indicate chart color: use a gradient based on the color
+          if (c.color) {
+            const dark = darkenHex(c.color, 30);
+            li.style.background = `linear-gradient(160deg, ${c.color} 0%, ${dark} 100%)`;
+            li.style.borderLeft = `8px solid ${c.color}`;
+          }
           li.appendChild(header);
           li.appendChild(desc);
           li.appendChild(meter);
@@ -502,10 +547,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!first) return;
     createPersonResult.textContent = "Creating...";
     try {
+      // include chosen calendar color (defaults to random if untouched)
+      const colorInput = document.getElementById("calendar_color");
+      const payload = { first_name: first, last_name: last };
+      if (colorInput && colorInput.value) {
+        payload.calendar_color = colorInput.value;
+      }
+
       const res = await fetch("/people", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ first_name: first, last_name: last }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
       const body = await res.json();
@@ -597,6 +649,12 @@ document.addEventListener("DOMContentLoaded", () => {
             await loadPerson(body.first_name);
             await loadLanding();
           });
+          // visually indicate chart color: use a slim gradient strip and border
+          if (c.color) {
+            const dark = darkenHex(c.color, 25);
+            li.style.background = `linear-gradient(90deg, ${c.color} 0%, ${dark} 100%)`;
+            li.style.borderLeft = `8px solid ${c.color}`;
+          }
           li.appendChild(meta);
           li.appendChild(btn);
           chartsList.appendChild(li);

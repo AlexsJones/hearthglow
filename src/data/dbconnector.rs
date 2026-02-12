@@ -5,6 +5,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Database, DatabaseConnection, EntityTrait,
     QueryFilter,
 };
+use chrono::Utc;
 
 pub(crate) trait HGDBConnection {
     async fn connect(&mut self) -> Result<(), anyhow::Error>;
@@ -98,9 +99,19 @@ impl HGDBConnection for SQLConnector {
         let db = self.database_connection.as_ref().unwrap();
 
         for member in config.family.values() {
+            // Generate a random bright color for each family member
+            let palette = [
+                "#FF6B9D", "#4ECDC4", "#FFD93D", "#95E1D3", "#F38181", "#AA96DA", "#FCBAD3",
+                "#A8E6CF", "#FFD700", "#87CEEB", "#FF8C42", "#C77DFF", "#FF69B4", "#00CED1",
+                "#FFB347", "#98D8C8", "#F7DC6F", "#BB8FCE",
+            ];
+            let idx = (Utc::now().timestamp_millis() as usize) % palette.len();
+            let random_color = palette[idx].to_string();
+
             let person = crate::entity::people::ActiveModel {
                 first_name: Set(member.first_name.clone()),
                 last_name: Set(member.last_name.clone()),
+                calendar_color: Set(Some(random_color)),
                 ..Default::default()
             };
             let _result = crate::entity::people::Entity::insert(person)
@@ -125,9 +136,7 @@ impl HGDBConnection for SQLConnector {
                                 .filter(
                                     crate::entity::person_parent::Column::ParentId.eq(parent.id),
                                 )
-                                .filter(
-                                    crate::entity::person_parent::Column::ChildId.eq(child.id),
-                                )
+                                .filter(crate::entity::person_parent::Column::ChildId.eq(child.id))
                                 .one(db)
                                 .await?;
                             if exists.is_none() {
@@ -187,6 +196,7 @@ impl HGDBConnection for SQLConnector {
                     description: c.chart_key,
                     star_count: c.star_count,
                     star_total: c.star_total,
+                    color: c.color.clone(),
                     person_first_name: p.first_name.clone(),
                     person_last_name: p.last_name.clone(),
                 })
@@ -222,10 +232,23 @@ impl HGDBConnection for SQLConnector {
         person: &CreatePersonRequest,
     ) -> Result<CreatePersonResponse, anyhow::Error> {
         let person = person.to_owned();
+        // Determine calendar color: use provided override or generate a deterministic bright color
+        let chosen_color = if let Some(c) = person.calendar_color.clone() {
+            c
+        } else {
+            let palette = [
+                "#FF6B9D", "#4ECDC4", "#FFD93D", "#95E1D3", "#F38181", "#AA96DA", "#FCBAD3", "#A8E6CF",
+                "#FFD700", "#87CEEB", "#FF8C42", "#C77DFF", "#FF69B4", "#00CED1", "#FFB347", "#98D8C8",
+                "#F7DC6F", "#BB8FCE",
+            ];
+            let idx = (Utc::now().timestamp_millis() as usize) % palette.len();
+            palette[idx].to_string()
+        };
 
         let new_person = crate::entity::people::ActiveModel {
             first_name: Set(person.first_name.clone()),
             last_name: Set(person.last_name.clone()),
+            calendar_color: Set(Some(chosen_color)),
             ..Default::default()
         };
 
@@ -247,15 +270,32 @@ impl HGDBConnection for SQLConnector {
         let person = crate::entity::people::Entity::find_by_id(star_chart.person_id)
             .one(db)
             .await?;
-        anyhow::ensure!(person.is_some(), "person {} not found", star_chart.person_id);
+        anyhow::ensure!(
+            person.is_some(),
+            "person {} not found",
+            star_chart.person_id
+        );
 
         let now = chrono::Utc::now();
+        // determine chart color: use provided or pick from palette
+        let palette = [
+            "#ff8a65", "#ffd54f", "#81c784", "#64b5f6", "#e57373", "#ba68c8", "#4db6ac",
+            "#ffb74d", "#aed581", "#90caf9",
+        ];
+        let chosen_color = if let Some(c) = star_chart.color.clone() {
+            c
+        } else {
+            let idx = (Utc::now().timestamp_millis() as usize) % palette.len();
+            palette[idx].to_string()
+        };
+
         let new_star_chart = crate::entity::star_charts::ActiveModel {
             person_id: Set(star_chart.person_id),
             chart_type: Set(star_chart.name.clone()),
             chart_key: Set(star_chart.description.clone()),
             star_total: Set(star_chart.star_total),
             star_count: Set(star_chart.star_count),
+            color: Set(Some(chosen_color)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -278,7 +318,9 @@ impl HGDBConnection for SQLConnector {
         let db = self.database_connection.as_ref().unwrap();
         let mut results: Vec<GetStarChartResponse> = Vec::new();
         for c in charts.into_iter() {
-            let person = crate::entity::people::Entity::find_by_id(c.person_id).one(db).await?;
+            let person = crate::entity::people::Entity::find_by_id(c.person_id)
+                .one(db)
+                .await?;
             let (pf, pl) = match person {
                 Some(p) => (p.first_name, p.last_name),
                 None => ("".to_string(), "".to_string()),
@@ -289,6 +331,7 @@ impl HGDBConnection for SQLConnector {
                 description: c.chart_key.clone(),
                 star_count: c.star_count,
                 star_total: c.star_total,
+                color: c.color.clone(),
                 person_first_name: pf,
                 person_last_name: pl,
             });
@@ -300,7 +343,9 @@ impl HGDBConnection for SQLConnector {
     async fn delete_star_chart(&self, star_chart_id: i32) -> Result<(), anyhow::Error> {
         use crate::entity::star_charts;
         let db = self.database_connection.as_ref().unwrap();
-        let _res = star_charts::Entity::delete_by_id(star_chart_id).exec(db).await?;
+        let _res = star_charts::Entity::delete_by_id(star_chart_id)
+            .exec(db)
+            .await?;
         Ok(())
     }
 
@@ -350,7 +395,9 @@ impl HGDBConnection for SQLConnector {
 
         if let Some(c) = chart {
             let db = self.database_connection.as_ref().unwrap();
-            let person = crate::entity::people::Entity::find_by_id(c.person_id).one(db).await?;
+            let person = crate::entity::people::Entity::find_by_id(c.person_id)
+                .one(db)
+                .await?;
             let (pf, pl) = match person {
                 Some(p) => (p.first_name, p.last_name),
                 None => ("".to_string(), "".to_string()),
@@ -361,6 +408,7 @@ impl HGDBConnection for SQLConnector {
                 description: c.chart_key,
                 star_count: c.star_count,
                 star_total: c.star_total,
+                color: c.color.clone(),
                 person_first_name: pf,
                 person_last_name: pl,
             }))
@@ -378,7 +426,9 @@ impl HGDBConnection for SQLConnector {
 
         let db = self.database_connection.as_ref().unwrap();
 
-        let existing = star_charts::Entity::find_by_id(star_chart_id).one(db).await?;
+        let existing = star_charts::Entity::find_by_id(star_chart_id)
+            .one(db)
+            .await?;
         anyhow::ensure!(existing.is_some(), "star chart {} not found", star_chart_id);
 
         let mut am: star_charts::ActiveModel = existing.unwrap().into();
@@ -401,7 +451,8 @@ impl HGDBConnection for SQLConnector {
         star_chart_id: i32,
         delta: i32,
     ) -> Result<UpdateStarChartResponse, anyhow::Error> {
-        self.increment_star_chart_internal(star_chart_id, delta).await
+        self.increment_star_chart_internal(star_chart_id, delta)
+            .await
     }
 }
 
@@ -414,7 +465,9 @@ impl SQLConnector {
         use crate::entity::star_charts;
 
         let db = self.database_connection.as_ref().unwrap();
-        let existing = star_charts::Entity::find_by_id(star_chart_id).one(db).await?;
+        let existing = star_charts::Entity::find_by_id(star_chart_id)
+            .one(db)
+            .await?;
         anyhow::ensure!(existing.is_some(), "star chart {} not found", star_chart_id);
 
         let existing_model = existing.unwrap();
@@ -433,23 +486,28 @@ impl SQLConnector {
     ) -> Result<Vec<crate::server::types::CalendarPersonResponse>, anyhow::Error> {
         let db = self.database_connection.as_ref().unwrap();
         let people = crate::entity::people::Entity::find().all(db).await?;
-        let palette = [
-            "#ff8a65",
-            "#ffd54f",
-            "#81c784",
-            "#64b5f6",
-            "#ba68c8",
-            "#4db6ac",
+
+        // Default color palette in case a person doesn't have a stored color
+        let default_palette = [
+            "#FF6B9D", "#4ECDC4", "#FFD93D", "#95E1D3", "#F38181", "#AA96DA", "#FCBAD3", "#A8E6CF",
+            "#FFD700", "#87CEEB", "#FF8C42", "#C77DFF",
         ];
+
         let items = people
             .into_iter()
             .map(|p| {
-                let color = palette[(p.id as usize) % palette.len()].to_string();
+                // Use stored color or fall back to palette based on ID
+                let color = p.calendar_color.clone().unwrap_or_else(|| {
+                    default_palette[(p.id as usize) % default_palette.len()].to_string()
+                });
+
+                // Make titles very clear for young children
+                let title = format!("📅 {}'s Calendar", p.first_name);
                 crate::server::types::CalendarPersonResponse {
                     id: p.id,
-                    title: format!("{} {}", p.first_name, p.last_name),
+                    title,
                     event_background_color: Some(color),
-                    event_text_color: Some("#2b1a0f".to_string()),
+                    event_text_color: Some("#000000".to_string()),
                 }
             })
             .collect();
@@ -460,7 +518,9 @@ impl SQLConnector {
         &self,
     ) -> Result<Vec<crate::server::types::CalendarEventResponse>, anyhow::Error> {
         let db = self.database_connection.as_ref().unwrap();
-        let events = crate::entity::calendar_events::Entity::find().all(db).await?;
+        let events = crate::entity::calendar_events::Entity::find()
+            .all(db)
+            .await?;
         Ok(events
             .into_iter()
             .map(|event| crate::server::types::CalendarEventResponse {
